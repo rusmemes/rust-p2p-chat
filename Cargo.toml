@@ -1,0 +1,10 @@
+[package]
+name = "awesome-chat"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.101"
+libp2p = { version = "0.56.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["default", "serde_derive"] }
+tokio = { version = "1.49.0", features = ["full"] }
