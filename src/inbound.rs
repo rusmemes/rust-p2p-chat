@@ -1,34 +1,46 @@
 use crate::domain::{ChatBehavior, ChatBehaviorEvent, MessageRequest, MessageResponse};
 use libp2p::request_response::{Event, Message};
 use libp2p::swarm::SwarmEvent;
-use libp2p::{PeerId, Swarm};
+use libp2p::Swarm;
 
-pub fn handle(
-    swarm: &mut Swarm<ChatBehavior>,
-    event: SwarmEvent<ChatBehaviorEvent>,
-    target_peer_id: &mut Option<PeerId>,
-) {
+pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEvent>) {
     match event {
         SwarmEvent::NewListenAddr { address, .. } => {
             println!("Listening on {:?}", address);
         }
         SwarmEvent::ConnectionEstablished { peer_id, .. } => {
-            if target_peer_id.is_none() {
-                target_peer_id.replace(peer_id);
-            }
+            println!("{peer_id:?} connected")
         }
-        SwarmEvent::ConnectionClosed { peer_id, .. } => {
-            if let Some(tpi) = target_peer_id {
-                if *tpi == peer_id {
-                    target_peer_id.take();
-                }
-            }
+        SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
+            println!("{peer_id:?} disconnected, cause {cause:?}")
         }
         SwarmEvent::Behaviour(event) => match event {
             ChatBehaviorEvent::Ping(event) => {
                 println!("Ping: {:?}", event);
             }
             ChatBehaviorEvent::Messaging(event) => messaging(swarm, event),
+            ChatBehaviorEvent::Mdns(event) => {
+                use libp2p::mdns::Event::{Discovered, Expired};
+                use libp2p::swarm::dial_opts::DialOpts;
+
+                match event {
+                    Discovered(peers) => {
+                        for (id, addr) in peers {
+
+                            let opts = DialOpts::peer_id(id)
+                                .addresses(vec![addr])
+                                .build();
+
+                            if let Err(e) = swarm.dial(opts) {
+                                println!("Dial failed: {e}");
+                            } else {
+                                println!("Dialing peer {} succeeded", id);
+                            }
+                        }
+                    }
+                    Expired(_) => {}
+                }
+            }
         },
         _ => {}
     }

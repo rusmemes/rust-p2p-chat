@@ -1,14 +1,19 @@
 use crate::domain::{ChatBehavior, MessageRequest};
-use libp2p::{PeerId, Swarm};
+use libp2p::Swarm;
 
-pub fn handle(swarm: &mut Swarm<ChatBehavior>, line: String, target_peer_id: &Option<PeerId>) {
-    if let Some(peer_id) = target_peer_id {
+pub fn handle(swarm: &mut Swarm<ChatBehavior>, line: String) {
+    let peers = swarm
+        .connected_peers()
+        .map(|it| it.clone())
+        .collect::<Vec<_>>();
+
+    for (id) in peers {
         swarm.behaviour_mut().messaging.send_request(
-            peer_id,
+            &id,
             MessageRequest {
                 message: line.clone(),
             },
         );
-        println!("{} {line:?}", swarm.local_peer_id());
+        println!("{id:?} {line:?}");
     }
 }
