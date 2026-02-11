@@ -5,16 +5,14 @@ use libp2p::kad::Mode;
 use libp2p::multiaddr::Protocol;
 use libp2p::ping::Config;
 use libp2p::request_response::json;
-use libp2p::swarm::behaviour::toggle::Toggle;
 use libp2p::{
-    identify, kad, mdns, noise, ping, request_response, tcp, yamux, Multiaddr, StreamProtocol,
+    identify, kad, noise, ping, request_response, tcp, yamux, Multiaddr, StreamProtocol,
     Swarm,
 };
 use std::env;
 use std::time::Duration;
 
 pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
-    let mdns_enabled = is_mdns_enabled()?;
     let bootstrap_peers = bootstrap_peers();
 
     let mut swarm: Swarm<ChatBehavior> = libp2p::SwarmBuilder::with_new_identity()
@@ -37,14 +35,6 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
                     )],
                     request_response::Config::default(),
                 ),
-                mdns: if mdns_enabled {
-                    Toggle::from(Some(mdns::Behaviour::new(
-                        mdns::Config::default(),
-                        key_pair.public().to_peer_id(),
-                    )?))
-                } else {
-                    Toggle::from(None)
-                },
                 identify: identify::Behaviour::new(identify::Config::new(
                     "1.0.0".to_string(),
                     key_pair.public(),
@@ -85,10 +75,4 @@ fn bootstrap_peers() -> Option<Vec<String>> {
     env::var("CHAT_BOOTSTRAP_PEERS")
         .ok()
         .map(|s| s.split(',').map(|p| p.to_string()).collect::<Vec<String>>())
-}
-
-fn is_mdns_enabled() -> anyhow::Result<bool> {
-    Ok(env::var("CHAT_MDNS_ENABLED")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse::<bool>()?)
 }

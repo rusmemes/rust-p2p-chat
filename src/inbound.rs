@@ -19,7 +19,6 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEve
                 println!("Ping: {:?}", event);
             }
             ChatBehaviorEvent::Messaging(event) => messaging(swarm, event),
-            ChatBehaviorEvent::Mdns(event) => mdns(swarm, event),
             ChatBehaviorEvent::Identify(event) => identify(swarm, event),
             ChatBehaviorEvent::Kademlia(event) => kademlia(swarm, event),
         },
@@ -86,26 +85,6 @@ fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
         } => {
             println!("Error while identifying: {peer_id:?}, cause: {error:?}")
         }
-    }
-}
-
-fn mdns(swarm: &mut Swarm<ChatBehavior>, event: libp2p::mdns::Event) {
-    use libp2p::mdns::Event::*;
-    use libp2p::swarm::dial_opts::DialOpts;
-
-    match event {
-        Discovered(peers) => {
-            for (id, addr) in peers {
-                let opts = DialOpts::peer_id(id).addresses(vec![addr]).build();
-
-                if let Err(e) = swarm.dial(opts) {
-                    println!("Dial failed: {e}");
-                } else {
-                    println!("Dialing peer {} succeeded", id);
-                }
-            }
-        }
-        Expired(_) => {}
     }
 }
 
