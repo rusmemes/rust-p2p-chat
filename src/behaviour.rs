@@ -1,8 +1,10 @@
 use libp2p::kad::store::MemoryStore;
 use libp2p::request_response::json;
 use libp2p::swarm::NetworkBehaviour;
-use libp2p::{autonat, dcutr, identify, kad, ping, relay};
+use libp2p::{autonat, dcutr, gossipsub, identify, kad, ping, relay};
 use serde::{Deserialize, Serialize};
+
+pub const CHAT_TOPIC: &str = "chat";
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct MessageRequest {
@@ -24,4 +26,5 @@ pub struct ChatBehavior {
     pub relay_server: relay::Behaviour,
     pub relay_client: relay::client::Behaviour,
     pub dcutr: dcutr::Behaviour,
+    pub gossipsub: gossipsub::Behaviour,
 }

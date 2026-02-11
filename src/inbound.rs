@@ -2,7 +2,7 @@ use crate::behaviour::{ChatBehavior, ChatBehaviorEvent, MessageRequest, MessageR
 use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{Event, Message};
 use libp2p::swarm::SwarmEvent;
-use libp2p::{autonat, relay, Swarm};
+use libp2p::{autonat, gossipsub, relay, Swarm};
 
 pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEvent>) {
     match event {
@@ -32,12 +32,28 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEve
             ChatBehaviorEvent::Dcutr(event) => {
                 println!("Dcutr: {:?}", event);
             }
+            ChatBehaviorEvent::Gossipsub(event) => {
+                use gossipsub::Event::*;
+                match event {
+                    Message { propagation_source, message_id, message } => {
+                        if let Ok(content) = String::from_utf8(message.data) {
+                            println!("{propagation_source:?} {content:?}");
+                        } else {
+                            println!("Got message from {propagation_source:?}: {message_id:?} but could not decode utf8");
+                        }
+                    }
+                    _ => {
+                        println!("Gossipsub: {:?}", event);
+                    }
+                }
+
+            }
         },
         _ => {}
     }
 }
 
-fn autonat(swarm: &mut Swarm<ChatBehavior>, event: autonat::Event) {
+fn autonat(_swarm: &mut Swarm<ChatBehavior>, event: autonat::Event) {
     use autonat::Event::*;
     match event {
         InboundProbe(event) => {
@@ -64,12 +80,12 @@ fn kademlia(swarm: &mut Swarm<ChatBehavior>, event: libp2p::kad::Event) {
             ..
         } => {
             println!("RoutingUpdated {peer:?} - {addresses:?}");
-            let mut iterator = addresses.iter().cloned();
-            while let Some(addr) = iterator.next() {
-                if let Err(error) = swarm.dial(addr.clone()) {
-                    println!("Dialing address {:?} failed: {}", addr, error);
-                }
-            }
+            // let mut iterator = addresses.iter().cloned();
+            // while let Some(addr) = iterator.next() {
+            //     if let Err(error) = swarm.dial(addr.clone()) {
+            //         println!("Dialing address {:?} failed: {}", addr, error);
+            //     }
+            // }
         }
         UnroutablePeer { .. } => {}
         RoutablePeer { .. } => {}
@@ -93,6 +109,7 @@ fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
 
             for addr in info.listen_addrs {
                 swarm.behaviour_mut().kademlia.add_address(&peer_id, addr.clone());
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
                 if is_relay {
                     let listen_addr = addr.with_p2p(peer_id).unwrap().with(Protocol::P2pCircuit);
                     println!("Trying to listening on {:?}", listen_addr);

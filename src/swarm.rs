@@ -1,16 +1,18 @@
-use crate::behaviour::ChatBehavior;
+use crate::behaviour::{ChatBehavior, CHAT_TOPIC};
 use anyhow::{anyhow, Context};
+use libp2p::gossipsub::{IdentTopic, MessageAuthenticity, ValidationMode};
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::Mode;
 use libp2p::multiaddr::Protocol;
 use libp2p::ping::Config;
 use libp2p::request_response::json;
 use libp2p::{
-    autonat, dcutr, identify, kad, noise, ping, relay, request_response, tcp, yamux,
+    autonat, dcutr, gossipsub, identify, kad, noise, ping, relay, request_response, tcp, yamux,
     Multiaddr, StreamProtocol, Swarm,
 };
 use std::env;
-use std::time::Duration;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::time::{Duration, SystemTime};
 
 pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
     let bootstrap_peers = bootstrap_peers();
@@ -55,6 +57,24 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
                 ),
                 relay_client,
                 dcutr: dcutr::Behaviour::new(key_pair.public().to_peer_id()),
+                gossipsub: gossipsub::Behaviour::new(
+                    MessageAuthenticity::Signed(key_pair.clone()),
+                    gossipsub::ConfigBuilder::default()
+                        .heartbeat_interval(Duration::from_secs(10))
+                        .validation_mode(ValidationMode::Strict)
+                        .message_id_fn(|message| {
+                            let mut hasher = DefaultHasher::new();
+                            message.data.hash(&mut hasher);
+                            message.topic.hash(&mut hasher);
+                            if let Some(peer_id) = message.source {
+                                peer_id.hash(&mut hasher);
+                            }
+                            let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+                            now.to_string().hash(&mut hasher);
+                            gossipsub::MessageId::from(hasher.finish().to_string())
+                        })
+                        .build()?,
+                )?,
             })
         })?
         .with_swarm_config(|config| config.with_idle_connection_timeout(Duration::from_secs(60)))
@@ -71,6 +91,7 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
 
             if let Some(Protocol::P2p(peer_id)) = addr.iter().last() {
                 swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+                swarm.behaviour_mut().gossipsub.add_explicit_peer(&peer_id);
             } else {
                 return Err(anyhow!(anyhow!(
                     "Peer ID does not exist in {bootstrap_peer_str}!"
@@ -78,6 +99,8 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
             }
         }
     }
+
+    swarm.behaviour_mut().gossipsub.subscribe(&IdentTopic::new(CHAT_TOPIC))?;
 
     Ok(swarm)
 }
