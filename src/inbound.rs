@@ -1,7 +1,8 @@
-use crate::domain::{ChatBehavior, ChatBehaviorEvent, MessageRequest, MessageResponse};
+use crate::behaviour::{ChatBehavior, ChatBehaviorEvent, MessageRequest, MessageResponse};
+use libp2p::multiaddr::Protocol;
 use libp2p::request_response::{Event, Message};
 use libp2p::swarm::SwarmEvent;
-use libp2p::Swarm;
+use libp2p::{autonat, relay, Swarm};
 
 pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEvent>) {
     match event {
@@ -21,8 +22,33 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEve
             ChatBehaviorEvent::Messaging(event) => messaging(swarm, event),
             ChatBehaviorEvent::Identify(event) => identify(swarm, event),
             ChatBehaviorEvent::Kademlia(event) => kademlia(swarm, event),
+            ChatBehaviorEvent::Autonat(event) => autonat(swarm, event),
+            ChatBehaviorEvent::RelayServer(event) => {
+                println!("Relay server: {:?}", event);
+            }
+            ChatBehaviorEvent::RelayClient(event) => {
+                println!("Relay client: {:?}", event);
+            }
+            ChatBehaviorEvent::Dcutr(event) => {
+                println!("Dcutr: {:?}", event);
+            }
         },
         _ => {}
+    }
+}
+
+fn autonat(swarm: &mut Swarm<ChatBehavior>, event: autonat::Event) {
+    use autonat::Event::*;
+    match event {
+        InboundProbe(event) => {
+            println!("Inbound Probe {event:?}")
+        }
+        OutboundProbe(event) => {
+            println!("Outbound Probe {event:?}")
+        }
+        StatusChanged { old, new } => {
+            println!("Status Changed from {old:?} to {new:?}")
+        }
     }
 }
 
@@ -60,31 +86,25 @@ fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
             peer_id,
             info,
         } => {
-            println!("Identified peer with id: {peer_id:?}, connection info: {info:?}");
+            let is_relay = info
+                .protocols
+                .iter()
+                .any(|protocol| *protocol == relay::HOP_PROTOCOL_NAME);
+
             for addr in info.listen_addrs {
-                swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+                swarm.behaviour_mut().kademlia.add_address(&peer_id, addr.clone());
+                if is_relay {
+                    let listen_addr = addr.with_p2p(peer_id).unwrap().with(Protocol::P2pCircuit);
+                    println!("Trying to listening on {:?}", listen_addr);
+                    if let Err(error) = swarm.listen_on(listen_addr) {
+                        println!("Error while listening on {:?}", error);
+                    }
+                }
             }
         }
-        Sent {
-            connection_id,
-            peer_id,
-        } => {
-            println!("Sent identification: peer ID: {peer_id:?}")
-        }
-        Pushed {
-            connection_id,
-            peer_id,
-            info,
-        } => {
-            println!("Pushed identification: peer ID: {peer_id:?}, connection info: {info:?}")
-        }
-        Error {
-            connection_id,
-            peer_id,
-            error,
-        } => {
-            println!("Error while identifying: {peer_id:?}, cause: {error:?}")
-        }
+        Sent { .. } => {}
+        Pushed { .. } => {}
+        Error { .. } => {}
     }
 }
 
@@ -109,35 +129,10 @@ fn messaging(swarm: &mut Swarm<ChatBehavior>, event: Event<MessageRequest, Messa
                     println!("Error sending response: {:?}", error);
                 }
             }
-            Message::Response {
-                request_id,
-                response,
-            } => {
-                println!("{peer} {:?}", response);
-            }
+            Message::Response { .. } => {}
         },
-        Event::OutboundFailure {
-            peer,
-            connection_id,
-            request_id,
-            error,
-        } => {
-            println!(
-                "OutboundFailure from {:?} to {:?}: {:?}",
-                peer, request_id, error
-            );
-        }
-        Event::InboundFailure {
-            peer,
-            connection_id,
-            request_id,
-            error,
-        } => {
-            println!(
-                "InboundFailure from {:?} to {:?}: {:?}",
-                peer, request_id, error
-            );
-        }
+        Event::OutboundFailure { .. } => {}
+        Event::InboundFailure { .. } => {}
         Event::ResponseSent { .. } => {}
     }
 }

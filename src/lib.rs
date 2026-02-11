@@ -1,4 +1,4 @@
-mod domain;
+mod behaviour;
 mod inbound;
 mod outbound;
 mod swarm;

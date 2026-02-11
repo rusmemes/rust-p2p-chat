@@ -1,4 +1,4 @@
-use crate::domain::ChatBehavior;
+use crate::behaviour::ChatBehavior;
 use anyhow::{anyhow, Context};
 use libp2p::kad::store::MemoryStore;
 use libp2p::kad::Mode;
@@ -6,8 +6,8 @@ use libp2p::multiaddr::Protocol;
 use libp2p::ping::Config;
 use libp2p::request_response::json;
 use libp2p::{
-    identify, kad, noise, ping, request_response, tcp, yamux, Multiaddr, StreamProtocol,
-    Swarm,
+    autonat, dcutr, identify, kad, noise, ping, relay, request_response, tcp, yamux,
+    Multiaddr, StreamProtocol, Swarm,
 };
 use std::env;
 use std::time::Duration;
@@ -22,7 +22,8 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
             noise::Config::new,
             yamux::Config::default,
         )?
-        .with_behaviour(|key_pair| {
+        .with_relay_client(noise::Config::new, yamux::Config::default)?
+        .with_behaviour(|key_pair, relay_client| {
             let mut kad_conf = kad::Config::new(StreamProtocol::new("/awesome-chat/kad/1.0.0"));
             kad_conf.set_periodic_bootstrap_interval(Some(Duration::from_secs(10)));
 
@@ -44,6 +45,16 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
                     MemoryStore::new(key_pair.public().to_peer_id()),
                     kad_conf,
                 ),
+                autonat: autonat::Behaviour::new(
+                    key_pair.public().to_peer_id(),
+                    autonat::Config::default(),
+                ),
+                relay_server: relay::Behaviour::new(
+                    key_pair.public().to_peer_id(),
+                    relay::Config::default(),
+                ),
+                relay_client,
+                dcutr: dcutr::Behaviour::new(key_pair.public().to_peer_id()),
             })
         })?
         .with_swarm_config(|config| config.with_idle_connection_timeout(Duration::from_secs(60)))

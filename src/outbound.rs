@@ -1,4 +1,4 @@
-use crate::domain::{ChatBehavior, MessageRequest};
+use crate::behaviour::{ChatBehavior, MessageRequest};
 use libp2p::Swarm;
 
 pub fn handle(swarm: &mut Swarm<ChatBehavior>, line: String) {
