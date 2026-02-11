@@ -7,13 +7,13 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, line: String) {
         .map(|it| it.clone())
         .collect::<Vec<_>>();
 
-    for (id) in peers {
+    for peer_id in peers {
         swarm.behaviour_mut().messaging.send_request(
-            &id,
+            &peer_id,
             MessageRequest {
                 message: line.clone(),
             },
         );
-        println!("{id:?} {line:?}");
+        println!("{peer_id:?} {line:?}");
     }
 }
