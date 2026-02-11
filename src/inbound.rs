@@ -19,30 +19,94 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEve
                 println!("Ping: {:?}", event);
             }
             ChatBehaviorEvent::Messaging(event) => messaging(swarm, event),
-            ChatBehaviorEvent::Mdns(event) => {
-                use libp2p::mdns::Event::{Discovered, Expired};
-                use libp2p::swarm::dial_opts::DialOpts;
-
-                match event {
-                    Discovered(peers) => {
-                        for (id, addr) in peers {
-
-                            let opts = DialOpts::peer_id(id)
-                                .addresses(vec![addr])
-                                .build();
-
-                            if let Err(e) = swarm.dial(opts) {
-                                println!("Dial failed: {e}");
-                            } else {
-                                println!("Dialing peer {} succeeded", id);
-                            }
-                        }
-                    }
-                    Expired(_) => {}
-                }
-            }
+            ChatBehaviorEvent::Mdns(event) => mdns(swarm, event),
+            ChatBehaviorEvent::Identify(event) => identify(swarm, event),
+            ChatBehaviorEvent::Kademlia(event) => kademlia(swarm, event),
         },
         _ => {}
+    }
+}
+
+fn kademlia(swarm: &mut Swarm<ChatBehavior>, event: libp2p::kad::Event) {
+    use libp2p::kad::Event::*;
+    match event {
+        InboundRequest { .. } => {}
+        OutboundQueryProgressed { .. } => {}
+        RoutingUpdated {
+            peer,
+            is_new_peer,
+            addresses,
+            bucket_range,
+            old_peer,
+        } => {
+            println!("RoutingUpdated {peer:?} - {addresses:?}");
+            let mut iterator = addresses.iter().cloned();
+            while let Some(addr) = iterator.next() {
+                if let Err(error) = swarm.dial(addr.clone()) {
+                    println!("Dialing address {:?} failed: {}", addr, error);
+                }
+            }
+        }
+        UnroutablePeer { .. } => {}
+        RoutablePeer { .. } => {}
+        PendingRoutablePeer { .. } => {}
+        ModeChanged { .. } => {}
+    }
+}
+
+fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
+    use libp2p::identify::Event::*;
+    match event {
+        Received {
+            connection_id,
+            peer_id,
+            info,
+        } => {
+            println!("Identified peer with id: {peer_id:?}, connection info: {info:?}");
+            for addr in info.listen_addrs {
+                swarm.behaviour_mut().kademlia.add_address(&peer_id, addr);
+            }
+        }
+        Sent {
+            connection_id,
+            peer_id,
+        } => {
+            println!("Sent identification: peer ID: {peer_id:?}")
+        }
+        Pushed {
+            connection_id,
+            peer_id,
+            info,
+        } => {
+            println!("Pushed identification: peer ID: {peer_id:?}, connection info: {info:?}")
+        }
+        Error {
+            connection_id,
+            peer_id,
+            error,
+        } => {
+            println!("Error while identifying: {peer_id:?}, cause: {error:?}")
+        }
+    }
+}
+
+fn mdns(swarm: &mut Swarm<ChatBehavior>, event: libp2p::mdns::Event) {
+    use libp2p::mdns::Event::*;
+    use libp2p::swarm::dial_opts::DialOpts;
+
+    match event {
+        Discovered(peers) => {
+            for (id, addr) in peers {
+                let opts = DialOpts::peer_id(id).addresses(vec![addr]).build();
+
+                if let Err(e) = swarm.dial(opts) {
+                    println!("Dial failed: {e}");
+                } else {
+                    println!("Dialing peer {} succeeded", id);
+                }
+            }
+        }
+        Expired(_) => {}
     }
 }
 
