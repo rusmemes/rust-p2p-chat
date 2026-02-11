@@ -36,8 +36,7 @@ fn kademlia(swarm: &mut Swarm<ChatBehavior>, event: libp2p::kad::Event) {
             peer,
             is_new_peer,
             addresses,
-            bucket_range,
-            old_peer,
+            ..
         } => {
             println!("RoutingUpdated {peer:?} - {addresses:?}");
             let mut iterator = addresses.iter().cloned();
