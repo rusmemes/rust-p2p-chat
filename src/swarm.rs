@@ -5,9 +5,8 @@ use libp2p::kad::store::MemoryStore;
 use libp2p::kad::Mode;
 use libp2p::multiaddr::Protocol;
 use libp2p::ping::Config;
-use libp2p::request_response::json;
 use libp2p::{
-    autonat, dcutr, gossipsub, identify, kad, noise, ping, relay, request_response, tcp, yamux,
+    autonat, dcutr, gossipsub, identify, kad, noise, ping, relay, tcp, yamux,
     Multiaddr, StreamProtocol, Swarm,
 };
 use std::env;
@@ -31,13 +30,6 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
 
             Ok(ChatBehavior {
                 ping: ping::Behaviour::new(Config::new().with_interval(Duration::from_secs(10))),
-                messaging: json::Behaviour::new(
-                    [(
-                        StreamProtocol::new("/awesome-chat/1"),
-                        request_response::ProtocolSupport::Full,
-                    )],
-                    request_response::Config::default(),
-                ),
                 identify: identify::Behaviour::new(identify::Config::new(
                     "1.0.0".to_string(),
                     key_pair.public(),

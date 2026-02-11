@@ -1,6 +1,5 @@
-use crate::behaviour::{ChatBehavior, ChatBehaviorEvent, MessageRequest, MessageResponse};
+use crate::behaviour::{ChatBehavior, ChatBehaviorEvent};
 use libp2p::multiaddr::Protocol;
-use libp2p::request_response::{Event, Message};
 use libp2p::swarm::SwarmEvent;
 use libp2p::{autonat, gossipsub, relay, Swarm};
 
@@ -19,9 +18,8 @@ pub fn handle(swarm: &mut Swarm<ChatBehavior>, event: SwarmEvent<ChatBehaviorEve
             ChatBehaviorEvent::Ping(event) => {
                 println!("Ping: {:?}", event);
             }
-            ChatBehaviorEvent::Messaging(event) => messaging(swarm, event),
             ChatBehaviorEvent::Identify(event) => identify(swarm, event),
-            ChatBehaviorEvent::Kademlia(event) => kademlia(swarm, event),
+            ChatBehaviorEvent::Kademlia(_) => {},
             ChatBehaviorEvent::Autonat(event) => autonat(swarm, event),
             ChatBehaviorEvent::RelayServer(event) => {
                 println!("Relay server: {:?}", event);
@@ -68,32 +66,6 @@ fn autonat(_swarm: &mut Swarm<ChatBehavior>, event: autonat::Event) {
     }
 }
 
-fn kademlia(swarm: &mut Swarm<ChatBehavior>, event: libp2p::kad::Event) {
-    use libp2p::kad::Event::*;
-    match event {
-        InboundRequest { .. } => {}
-        OutboundQueryProgressed { .. } => {}
-        RoutingUpdated {
-            peer,
-            is_new_peer,
-            addresses,
-            ..
-        } => {
-            println!("RoutingUpdated {peer:?} - {addresses:?}");
-            // let mut iterator = addresses.iter().cloned();
-            // while let Some(addr) = iterator.next() {
-            //     if let Err(error) = swarm.dial(addr.clone()) {
-            //         println!("Dialing address {:?} failed: {}", addr, error);
-            //     }
-            // }
-        }
-        UnroutablePeer { .. } => {}
-        RoutablePeer { .. } => {}
-        PendingRoutablePeer { .. } => {}
-        ModeChanged { .. } => {}
-    }
-}
-
 fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
     use libp2p::identify::Event::*;
     match event {
@@ -122,34 +94,5 @@ fn identify(swarm: &mut Swarm<ChatBehavior>, event: libp2p::identify::Event) {
         Sent { .. } => {}
         Pushed { .. } => {}
         Error { .. } => {}
-    }
-}
-
-fn messaging(swarm: &mut Swarm<ChatBehavior>, event: Event<MessageRequest, MessageResponse>) {
-    match event {
-        Event::Message {
-            peer,
-            connection_id,
-            message,
-        } => match message {
-            Message::Request {
-                request_id,
-                request,
-                channel,
-            } => {
-                println!("{peer} {:?}", request.message);
-                if let Err(error) = swarm
-                    .behaviour_mut()
-                    .messaging
-                    .send_response(channel, MessageResponse { ack: true })
-                {
-                    println!("Error sending response: {:?}", error);
-                }
-            }
-            Message::Response { .. } => {}
-        },
-        Event::OutboundFailure { .. } => {}
-        Event::InboundFailure { .. } => {}
-        Event::ResponseSent { .. } => {}
     }
 }
