@@ -10,8 +10,7 @@ use libp2p::{
     Multiaddr, StreamProtocol, Swarm,
 };
 use std::env;
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
     let bootstrap_peers = bootstrap_peers();
@@ -54,17 +53,6 @@ pub fn create_swarm() -> anyhow::Result<Swarm<ChatBehavior>> {
                     gossipsub::ConfigBuilder::default()
                         .heartbeat_interval(Duration::from_secs(10))
                         .validation_mode(ValidationMode::Strict)
-                        .message_id_fn(|message| {
-                            let mut hasher = DefaultHasher::new();
-                            message.data.hash(&mut hasher);
-                            message.topic.hash(&mut hasher);
-                            if let Some(peer_id) = message.source {
-                                peer_id.hash(&mut hasher);
-                            }
-                            let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
-                            now.to_string().hash(&mut hasher);
-                            gossipsub::MessageId::from(hasher.finish().to_string())
-                        })
                         .build()?,
                 )?,
             })
